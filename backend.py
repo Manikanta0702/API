@@ -1,41 +1,39 @@
 import os
-import warnings
 from flask import Flask, request, jsonify
-import whisper
 import openai
 from flask_cors import CORS
-
-warnings.filterwarnings("ignore", category=FutureWarning, module="whisper")
 
 app = Flask(__name__)
 CORS(app)
 
-def audio_to_text(audio_file_path):
-    try:
-        if not os.path.exists(audio_file_path):
-            return "Error: File not found."
+# Replace 'YOUR_OPENAI_API_KEY' with your actual OpenAI API key
+openai.api_key = os.getenv('API_KEY')
 
-        model = whisper.load_model("base")  
-        result = model.transcribe(audio_file_path, language="en", task="transcribe", fp16=False)
-        transcription = result["text"]
-        return transcription.strip()
+def transcribe_audio(audio_file_path):
+    try:
+        with open(audio_file_path, 'rb') as audio_file:
+            result = openai.Audio.transcribe(
+                model="whisper-1",
+                file=audio_file,
+                language="en"
+            )
+            transcription = result['text']
+            return transcription.strip()
     except Exception as e:
         return f"Error: {str(e)}"
 
-def generate_reply(user_query):
-    openai.api_key = os.getenv('API_KEY')# Replace with your OpenAI API key
-
+def generate_reply(transcription):
     try:
-        completion = openai.ChatCompletion.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that provides human-like responses."},
-                {"role": "user", "content": f"This is the user query: {user_query}. Generate a suggestible response analysing the users intent in the query and only give me back the response and nothing else. Try to act like human."},
+                {"role": "user", "content": transcription},
             ],
             temperature=0.7,
             max_tokens=100,
         )
-        return completion.choices[0].message["content"].strip()
+        return response['choices'][0]['message']['content'].strip()
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -43,29 +41,32 @@ def generate_reply(user_query):
 def process_audio():
     try:
         if "file" not in request.files:
-            return jsonify({"error": "No file part"}), 400
+            return jsonify({"error": "No file part in the request"}), 400
 
         file = request.files["file"]
 
         if file.filename == "":
             return jsonify({"error": "No selected file"}), 400
 
+        # Save the uploaded file to a temporary location
         audio_file_path = f"temp_{file.filename}"
-
         file.save(audio_file_path)
 
-        transcription = audio_to_text(audio_file_path)
+        # Transcribe the audio using OpenAI Whisper API
+        transcription = transcribe_audio(audio_file_path)
 
         if "Error" in transcription:
+            os.remove(audio_file_path)
             return jsonify({"error": transcription}), 400
 
+        # Call the GPT-3.5 model to generate the reply
         response = generate_reply(transcription)
 
-        os.remove(audio_file_path)
-
+        os.remove(audio_file_path)  # Clean up the temporary file
         return jsonify({"response": response})
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
