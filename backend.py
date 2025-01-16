@@ -44,7 +44,7 @@ def process_audio():
             return jsonify({"error": "No file part in the request"}), 400
 
         file = request.files["file"]
-        context = request.get("context")
+        context = request.json.get("context")
         if file.filename == "":
             return jsonify({"error": "No selected file"}), 400
 
