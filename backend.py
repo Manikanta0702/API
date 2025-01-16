@@ -1,6 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 import openai
+import json
 from flask_cors import CORS
 
 
@@ -44,7 +45,7 @@ def process_audio():
             return jsonify({"error": "No file part in the request"}), 400
 
         file = request.files["file"]
-        context = request.context
+        context = json.loads(request.form['context'])
         if file.filename == "":
             return jsonify({"error": "No selected file"}), 400
 
