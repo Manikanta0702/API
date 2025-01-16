@@ -23,12 +23,12 @@ def transcribe_audio(audio_file_path):
     except Exception as e:
         return f"Error: {str(e)}"
 
-def generate_reply(transcription, context):
+def generate_reply(transcription):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": f"You are a helpful assistant that provides human-like responses. And here is the context. {context}\nAnd give the response in marked down format."},
+                {"role": "system", "content": f"You are a helpful assistant that provides human-like responses. And give the response in marked down format."},
                 {"role": "user", "content": transcription},
             ],
             temperature=0.7,
@@ -45,7 +45,6 @@ def process_audio():
             return jsonify({"error": "No file part in the request"}), 400
 
         file = request.files["file"]
-        context = json.loads(request.form['context'])
         if file.filename == "":
             return jsonify({"error": "No selected file"}), 400
 
@@ -58,7 +57,7 @@ def process_audio():
             os.remove(audio_file_path)
             return jsonify({"error": transcription}), 400
 
-        response = generate_reply(transcription, context)
+        response = generate_reply(transcription)
 
         os.remove(audio_file_path)  
         return jsonify({"response": response, "trancsript": transcription})
