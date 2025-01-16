@@ -2,11 +2,14 @@ import os
 from flask import Flask, request, jsonify
 import openai
 from flask_cors import CORS
+from dotenv import load_dotenv
+
 
 app = Flask(__name__)
 CORS(app)
 
-# Replace 'YOUR_OPENAI_API_KEY' with your actual OpenAI API key
+load_dotenv()
+
 openai.api_key = os.getenv('API_KEY')
 
 def transcribe_audio(audio_file_path):
@@ -27,7 +30,7 @@ def generate_reply(transcription):
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that provides human-like responses."},
+                {"role": "system", "content": "You are a helpful assistant that provides human-like responses. And give the response in marked down format."},
                 {"role": "user", "content": transcription},
             ],
             temperature=0.7,
@@ -35,7 +38,7 @@ def generate_reply(transcription):
         )
         return response['choices'][0]['message']['content'].strip()
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: {str(e)}" 
 
 @app.route("/process-audio/", methods=['POST', 'GET'])
 def process_audio():
@@ -48,22 +51,19 @@ def process_audio():
         if file.filename == "":
             return jsonify({"error": "No selected file"}), 400
 
-        # Save the uploaded file to a temporary location
         audio_file_path = f"temp_{file.filename}"
         file.save(audio_file_path)
 
-        # Transcribe the audio using OpenAI Whisper API
         transcription = transcribe_audio(audio_file_path)
 
         if "Error" in transcription:
             os.remove(audio_file_path)
             return jsonify({"error": transcription}), 400
 
-        # Call the GPT-3.5 model to generate the reply
         response = generate_reply(transcription)
 
-        os.remove(audio_file_path)  # Clean up the temporary file
-        return jsonify({"response": response})
+        os.remove(audio_file_path)  
+        return jsonify({"response": response, "trancsript": transcription})
 
     except Exception as e:
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
